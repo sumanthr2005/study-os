@@ -1,0 +1,44 @@
+{
+  "name": "study-os",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3000",
+    "build": "node scripts/prepare-prisma.js && prisma generate && next build",
+    "start": "next start",
+    "lint": "next lint",
+    "postinstall": "node scripts/prepare-prisma.js && prisma generate",
+    "db:prepare": "node scripts/prepare-prisma.js",
+    "db:push": "prisma db push",
+    "db:push:pg": "prisma db push --schema=prisma/schema.postgresql.prisma",
+    "db:push:sqlite": "prisma db push --schema=prisma/schema.sqlite.prisma",
+    "db:seed": "tsx scripts/seed.ts",
+    "test:sync": "tsx scripts/test-sync.ts",
+    "test:regression": "tsx scripts/test-regression.ts",
+    "test:live": "tsx scripts/verify-live.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.21.1",
+    "canvas-confetti": "^1.9.3",
+    "clsx": "^2.1.1",
+    "date-fns": "^3.6.0",
+    "lucide-react": "^0.453.0",
+    "next": "^14.2.15",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "recharts": "^2.13.0",
+    "tailwind-merge": "^2.5.4"
+  },
+  "devDependencies": {
+    "@types/canvas-confetti": "^1.9.0",
+    "@types/node": "^20.17.0",
+    "@types/react": "^18.3.11",
+    "@types/react-dom": "^18.3.1",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.47",
+    "prisma": "^5.21.1",
+    "tailwindcss": "^3.4.14",
+    "tsx": "^4.23.15",
+    "typescript": "^5.6.3"
+  }
+}

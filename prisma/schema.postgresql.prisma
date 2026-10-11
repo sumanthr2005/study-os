@@ -1,0 +1,443 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id                        String             @id @default(cuid())
+  email                     String             @unique
+  name                      String
+  avatar                    String?
+  dailyStudyTargetMinutes   Int                @default(360) // 6 hours
+  leetcodeDailyTarget       Int                @default(5)
+  waterDailyTargetMl        Int                @default(3000)
+  sleepTargetHours          Float              @default(7.5)
+  currentStreak             Int                @default(0)
+  longestStreak             Int                @default(0)
+  lastActiveDate            String?
+  totalXp                   Int                @default(0)
+  level                     Int                @default(1)
+  
+  // Productivity Score customizable weights (total 100)
+  studyWeight               Int                @default(40)
+  codingWeight              Int                @default(20)
+  learningWeight            Int                @default(15)
+  habitsWeight              Int                @default(15)
+  healthWeight              Int                @default(10)
+  
+  playlists                 Playlist[]
+  studySessions             StudySession[]
+  tasks                     Task[]
+  habits                    Habit[]
+  waterEntries              WaterEntry[]
+  leetcodeProblems          LeetCodeProblem[]
+  dsaTopics                 DsaTopic[]
+  goals                     Goal[]
+  revisions                 Revision[]
+  notes                     Note[]
+  placementCompanies        PlacementCompany[]
+  mockTests                 MockTest[]
+  wellnessEntries           WellnessEntry[]
+  notifications             Notification[]
+  aiRecommendations         AiRecommendation[]
+
+  createdAt                 DateTime           @default(now())
+  updatedAt                 DateTime           @updatedAt
+}
+
+model Playlist {
+  id                         String          @id @default(cuid())
+  userId                     String
+  user                       User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  youtubePlaylistId          String
+  title                      String
+  description                String?
+  channelTitle               String?
+  channelId                  String?
+  thumbnailUrl               String?
+  targetCompletionDate       DateTime?
+  availableStudyHoursPerDay  Float           @default(2.0)
+  preferredStudyDays         String?         @default("1,2,3,4,5,6,7")
+  maxVideosPerDay            Int?
+  minVideosPerDay            Int?
+  totalVideos                Int             @default(0)
+  completedVideos            Int             @default(0)
+  totalDurationSeconds       Int             @default(0)
+  completedDurationSeconds   Int             @default(0)
+  lastSyncedAt               DateTime?
+  syncFrequency              String          @default("daily") // manual, 12h, 24h, daily
+  isArchived                 Boolean         @default(false)
+
+  videos                     PlaylistVideo[]
+  studySessions              StudySession[]
+  tasks                      Task[]
+
+  createdAt                  DateTime        @default(now())
+  updatedAt                  DateTime        @updatedAt
+
+  @@unique([userId, youtubePlaylistId])
+  @@index([userId])
+}
+
+model PlaylistVideo {
+  id                    String         @id @default(cuid())
+  playlistId            String
+  playlist              Playlist       @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+  youtubeVideoId        String         // Unique YouTube video identifier
+  title                 String
+  description           String?
+  thumbnailUrl          String?
+  durationSeconds       Int            @default(0)
+  position              Int            @default(0)
+  publishedAt           DateTime?
+  completed             Boolean        @default(false)
+  completedAt           DateTime?
+  isNew                 Boolean        @default(false)
+  isUnavailable         Boolean        @default(false)
+  notes                 String?
+  difficulty            String?        @default("Medium") // Easy, Medium, Hard
+  priority              String?        @default("Medium") // Low, Medium, High
+  status                String         @default("incomplete") // incomplete, completed, skipped, reviewing
+
+  studySessions         StudySession[]
+  tasks                 Task[]
+
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+
+  @@unique([playlistId, youtubeVideoId])
+  @@index([playlistId])
+  @@index([youtubeVideoId])
+}
+
+model StudySession {
+  id                    String         @id @default(cuid())
+  userId                String
+  user                  User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subject               String         // DSA, DBMS, System Design, LeetCode, Projects, etc.
+  playlistId            String?
+  playlist              Playlist?      @relation(fields: [playlistId], references: [id], onDelete: SetNull)
+  playlistVideoId       String?
+  playlistVideo         PlaylistVideo? @relation(fields: [playlistVideoId], references: [id], onDelete: SetNull)
+  taskId                String?
+  task                  Task?          @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  mode                  String         @default("stopwatch") // stopwatch, countdown, pomodoro, custom
+  startTime             DateTime       @default(now())
+  endTime               DateTime       @default(now())
+  durationSeconds       Int            @default(0)
+  isDeepWork            Boolean        @default(true)
+  notes                 String?
+  xpEarned              Int            @default(0)
+
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+
+  @@index([userId])
+  @@index([playlistId])
+  @@index([createdAt])
+}
+
+model Task {
+  id                    String         @id @default(cuid())
+  userId                String
+  user                  User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title                 String
+  description           String?
+  category              String         @default("Study") // Study, Coding, Revision, Project, Placement
+  priority              String         @default("MEDIUM") // LOW, MEDIUM, HIGH, URGENT
+  deadline              DateTime?
+  estimatedMinutes      Int            @default(30)
+  actualMinutes         Int            @default(0)
+  status                String         @default("TODO") // TODO, IN_PROGRESS, COMPLETED, SKIPPED
+  tags                  String?
+  playlistId            String?
+  playlist              Playlist?      @relation(fields: [playlistId], references: [id], onDelete: SetNull)
+  playlistVideoId       String?
+  playlistVideo         PlaylistVideo? @relation(fields: [playlistVideoId], references: [id], onDelete: SetNull)
+  goalId                String?
+  goal                  Goal?          @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  isRevision            Boolean        @default(false)
+  completedAt           DateTime?
+
+  studySessions         StudySession[]
+
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@index([deadline])
+}
+
+model Habit {
+  id                    String            @id @default(cuid())
+  userId                String
+  user                  User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name                  String
+  description           String?
+  category              String            @default("Health") // Health, Learning, Focus, Fitness
+  icon                  String?           @default("CheckCircle")
+  color                 String?           @default("#10B981")
+  frequency             String            @default("DAILY")
+  targetDaysPerWeek     Int               @default(7)
+  currentStreak         Int               @default(0)
+  longestStreak         Int               @default(0)
+  isArchived            Boolean           @default(false)
+
+  completions           HabitCompletion[]
+
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+
+  @@index([userId])
+}
+
+model HabitCompletion {
+  id                    String         @id @default(cuid())
+  habitId               String
+  habit                 Habit          @relation(fields: [habitId], references: [id], onDelete: Cascade)
+  date                  String         // YYYY-MM-DD
+  completed             Boolean        @default(true)
+  notes                 String?
+
+  createdAt             DateTime       @default(now())
+
+  @@unique([habitId, date])
+  @@index([habitId])
+  @@index([date])
+}
+
+model WaterEntry {
+  id                    String         @id @default(cuid())
+  userId                String
+  user                  User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amountMl              Int
+  date                  String         // YYYY-MM-DD
+  timestamp             DateTime       @default(now())
+
+  createdAt             DateTime       @default(now())
+
+  @@index([userId])
+  @@index([date])
+}
+
+model LeetCodeProblem {
+  id                    String         @id @default(cuid())
+  userId                String
+  user                  User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  problemNumber         Int?
+  title                 String
+  slug                  String?
+  difficulty            String         // EASY, MEDIUM, HARD
+  topic                 String         @default("General")
+  notes                 String?
+  solutionUrl           String?
+  solvedAt              DateTime       @default(now())
+  timeTakenMinutes      Int?
+  xpEarned              Int            @default(10)
+
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+
+  @@index([userId])
+  @@index([difficulty])
+  @@index([topic])
+  @@index([solvedAt])
+}
+
+model DsaTopic {
+  id                    String         @id @default(cuid())
+  userId                String
+  user                  User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topicKey              String         // arrays, strings, trees, etc.
+  name                  String
+  progressPercent       Int            @default(0)
+  problemsSolved        Int            @default(0)
+  totalProblemsTarget   Int            @default(25)
+  confidence            Int            @default(50) // 0 - 100
+  revisionStatus        String         @default("PENDING") // PENDING, IN_PROGRESS, MASTERED
+  lastRevisedAt         DateTime?
+  nextRevisionAt        DateTime?
+  notes                 String?
+
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+
+  @@unique([userId, topicKey])
+  @@index([userId])
+}
+
+model Goal {
+  id                    String          @id @default(cuid())
+  userId                String
+  user                  User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title                 String
+  description           String?
+  category              String          @default("LEARNING") // LEARNING, LEETCODE, PLAYLIST, STUDY_HOURS, PLACEMENT
+  targetValue           Float
+  currentValue          Float           @default(0)
+  unit                  String          @default("items")
+  startDate             DateTime        @default(now())
+  deadline              DateTime
+  status                String          @default("IN_PROGRESS") // IN_PROGRESS, COMPLETED, PAUSED
+
+  milestones            GoalMilestone[]
+  tasks                 Task[]
+
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+
+  @@index([userId])
+}
+
+model GoalMilestone {
+  id                    String         @id @default(cuid())
+  goalId                String
+  goal                  Goal           @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  title                 String
+  targetValue           Float
+  completed             Boolean        @default(false)
+  completedAt           DateTime?
+
+  createdAt             DateTime       @default(now())
+
+  @@index([goalId])
+}
+
+model Revision {
+  id                    String         @id @default(cuid())
+  userId                String
+  user                  User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title                 String
+  subjectOrTopic        String
+  referenceType         String         @default("TOPIC") // VIDEO, DSA_TOPIC, NOTE, TASK, GENERAL
+  referenceId           String?
+  intervalDays          Int            @default(3)
+  scheduledFor          DateTime
+  completed             Boolean        @default(false)
+  completedAt           DateTime?
+  repetitionNumber      Int            @default(1)
+  notes                 String?
+
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+
+  @@index([userId])
+  @@index([scheduledFor])
+  @@index([completed])
+}
+
+model Note {
+  id                    String         @id @default(cuid())
+  userId                String
+  user                  User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title                 String
+  content               String         // Markdown content
+  tags                  String?
+  relatedType           String         @default("GENERAL") // PLAYLIST_VIDEO, DSA_TOPIC, TASK, GOAL, GENERAL
+  relatedId             String?
+  isPinned              Boolean        @default(false)
+
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+
+  @@index([userId])
+  @@index([relatedType])
+}
+
+model PlacementCompany {
+  id                        String      @id @default(cuid())
+  userId                    String
+  user                      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name                      String
+  role                      String      @default("SDE 1")
+  stage                     String      @default("APPLICATION") // APPLICATION, OA, CODING, TECH_INTERVIEW, SYSTEM_DESIGN, HR, OFFER, REJECTED
+  targetDate                DateTime?
+  dsaPrepPercent            Int         @default(0)
+  coreCsPrepPercent         Int         @default(0)
+  systemDesignPrepPercent   Int         @default(0)
+  behavioralPrepPercent     Int         @default(0)
+  notes                     String?
+
+  createdAt                 DateTime    @default(now())
+  updatedAt                 DateTime    @updatedAt
+
+  @@index([userId])
+}
+
+model MockTest {
+  id                    String         @id @default(cuid())
+  userId                String
+  user                  User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title                 String
+  platform              String         @default("LeetCode")
+  score                 Float
+  maxScore              Float          @default(100)
+  durationMinutes       Int            @default(60)
+  date                  DateTime       @default(now())
+  topicsTested          String?
+  mistakesAnalysis      String?
+  difficulty            String?        @default("Medium")
+
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+
+  @@index([userId])
+}
+
+model WellnessEntry {
+  id                    String         @id @default(cuid())
+  userId                String
+  user                  User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date                  String         // YYYY-MM-DD
+  sleepHours            Float?
+  sleepQuality          Int?           // 1 to 5
+  workoutMinutes        Int?
+  workoutType           String?
+  readingMinutes        Int?
+  readingBook           String?
+  readingPages          Int?
+
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+
+  @@unique([userId, date])
+  @@index([userId])
+  @@index([date])
+}
+
+model Notification {
+  id                    String         @id @default(cuid())
+  userId                String
+  user                  User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title                 String
+  message               String
+  type                  String         @default("SYSTEM") // SYSTEM, REVISION, SYNC, STREAK, GOAL
+  isRead                Boolean        @default(false)
+  actionUrl             String?
+
+  createdAt             DateTime       @default(now())
+
+  @@index([userId])
+  @@index([isRead])
+}
+
+model AiRecommendation {
+  id                    String         @id @default(cuid())
+  userId                String
+  user                  User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planDate              String         // YYYY-MM-DD
+  recommendedPlanJson   String         // JSON text
+  weeklyReviewJson      String?        // JSON text
+  providerUsed          String         @default("rule-based")
+
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+
+  @@unique([userId, planDate])
+  @@index([userId])
+}
