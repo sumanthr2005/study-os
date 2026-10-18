@@ -54,10 +54,15 @@ export async function GET() {
 
 export async function PATCH(req: Request) {
   try {
+    const user = await getOrCreateDefaultUser();
     const body = await req.json();
     const { id, progressPercent, problemsSolved, confidence, revisionStatus, notes } = body;
 
     if (!id) return NextResponse.json({ error: 'Topic ID is required' }, { status: 400 });
+
+    const existing = await prisma.dsaTopic.findUnique({ where: { id } });
+    if (!existing) return NextResponse.json({ error: 'Topic not found' }, { status: 404 });
+    if (existing.userId !== user.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
 
     const updated = await prisma.dsaTopic.update({
       where: { id },

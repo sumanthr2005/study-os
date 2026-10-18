@@ -8,9 +8,11 @@ import {
   checkAndUnlockAchievements,
 } from '@/lib/gamification';
 
-export async function GET() {
+export const dynamic = 'force-dynamic';
+
+export async function GET(req: Request) {
   try {
-    const user = await getOrCreateDefaultUser();
+    const user = await getOrCreateDefaultUser(req);
 
     // Trigger check for any newly met achievement criteria
     await checkAndUnlockAchievements(user.id);

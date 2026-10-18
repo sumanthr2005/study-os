@@ -1,8 +1,23 @@
 import { NextResponse } from 'next/server';
 import { syncPlaylistWithDatabase } from '@/lib/youtube';
+import { prisma } from '@/lib/prisma';
+import { getOrCreateDefaultUser } from '@/lib/user';
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   try {
+    const user = await getOrCreateDefaultUser();
+    const playlist = await prisma.playlist.findUnique({
+      where: { id: params.id },
+    });
+
+    if (!playlist) {
+      return NextResponse.json({ error: 'Playlist not found' }, { status: 404 });
+    }
+
+    if (playlist.userId !== user.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+    }
+
     const body = await req.json().catch(() => ({}));
     const { expandScenario } = body;
 

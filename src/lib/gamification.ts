@@ -210,23 +210,42 @@ export async function awardServerXp(params: {
   const safeAmount = Math.max(1, Math.min(500, Math.round(amount)));
 
   // 3. Record in ledger and increment user XP atomically in a transaction
-  const [createdLedger, updatedUser] = await prisma.$transaction([
-    prisma.xpLedger.create({
-      data: {
-        userId,
-        amount: safeAmount,
+  let updatedUser;
+  try {
+    const [, uUser] = await prisma.$transaction([
+      prisma.xpLedger.create({
+        data: {
+          userId,
+          amount: safeAmount,
+          actionType,
+          description,
+          eventKey,
+        },
+      }),
+      prisma.user.update({
+        where: { id: userId },
+        data: {
+          totalXp: { increment: safeAmount },
+        },
+      }),
+    ]);
+    updatedUser = uUser;
+  } catch (err: any) {
+    if (err.code === 'P2002') {
+      // Race condition handled: duplicate unique eventKey rejected idempotently
+      const user = await prisma.user.findUnique({ where: { id: userId } });
+      const levelInfo = calculateRankAndLevel(user?.totalXp || 0);
+      return {
+        awarded: false,
+        amount: 0,
         actionType,
-        description,
-        eventKey,
-      },
-    }),
-    prisma.user.update({
-      where: { id: userId },
-      data: {
-        totalXp: { increment: safeAmount },
-      },
-    }),
-  ]);
+        totalXp: user?.totalXp || 0,
+        levelInfo,
+        newAchievements: [],
+      };
+    }
+    throw err;
+  }
 
   const levelInfo = calculateRankAndLevel(updatedUser.totalXp);
 

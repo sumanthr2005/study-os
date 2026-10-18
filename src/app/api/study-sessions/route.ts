@@ -80,34 +80,34 @@ export async function POST(req: Request) {
       notes,
     } = body;
 
-    if (!subject || !durationSeconds || durationSeconds <= 0) {
+    if (!subject || !durationSeconds || durationSeconds <= 0 || durationSeconds > 43200) {
       return NextResponse.json(
-        { error: 'Subject and valid duration in seconds are required' },
+        { error: 'Subject and valid duration between 1 second and 12 hours (43200s) are required' },
         { status: 400 }
       );
     }
 
-    // Award XP: +20 XP per hour studied
-    const hours = durationSeconds / 3600;
-    const xpEarned = Math.max(5, Math.round(hours * 20));
+    // Award XP: +20 XP per hour studied, capped at 100 XP per session to prevent forged rewards
+    const hours = Math.min(12, durationSeconds / 3600);
+    const xpEarned = Math.min(100, Math.max(5, Math.round(hours * 20)));
 
-    // Validate foreign key relationships to prevent constraint errors
+    // Validate foreign key relationships to prevent constraint errors and ensure user ownership
     let validPlaylistId: string | null = null;
     if (playlistId) {
       const pExists = await prisma.playlist.findUnique({ where: { id: playlistId } });
-      if (pExists) validPlaylistId = playlistId;
+      if (pExists && pExists.userId === user.id) validPlaylistId = playlistId;
     }
 
     let validPlaylistVideoId: string | null = null;
     if (playlistVideoId) {
-      const vExists = await prisma.playlistVideo.findUnique({ where: { id: playlistVideoId } });
-      if (vExists) validPlaylistVideoId = playlistVideoId;
+      const vExists = await prisma.playlistVideo.findUnique({ where: { id: playlistVideoId }, include: { playlist: true } });
+      if (vExists && vExists.playlist.userId === user.id) validPlaylistVideoId = playlistVideoId;
     }
 
     let validTaskId: string | null = null;
     if (taskId) {
       const tExists = await prisma.task.findUnique({ where: { id: taskId } });
-      if (tExists) validTaskId = taskId;
+      if (tExists && tExists.userId === user.id) validTaskId = taskId;
     }
 
     const session = await prisma.studySession.create({

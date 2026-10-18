@@ -54,10 +54,15 @@ export async function POST(req: Request) {
 
 export async function PATCH(req: Request) {
   try {
+    const user = await getOrCreateDefaultUser();
     const body = await req.json();
     const { id, title, content, tags, isPinned } = body;
 
     if (!id) return NextResponse.json({ error: 'Note ID is required' }, { status: 400 });
+
+    const existing = await prisma.note.findUnique({ where: { id } });
+    if (!existing) return NextResponse.json({ error: 'Note not found' }, { status: 404 });
+    if (existing.userId !== user.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
 
     const updated = await prisma.note.update({
       where: { id },
@@ -77,9 +82,14 @@ export async function PATCH(req: Request) {
 
 export async function DELETE(req: Request) {
   try {
+    const user = await getOrCreateDefaultUser();
     const url = new URL(req.url);
     const id = url.searchParams.get('id');
     if (!id) return NextResponse.json({ error: 'Note ID is required' }, { status: 400 });
+
+    const existing = await prisma.note.findUnique({ where: { id } });
+    if (!existing) return NextResponse.json({ error: 'Note not found' }, { status: 404 });
+    if (existing.userId !== user.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
 
     await prisma.note.delete({ where: { id } });
     return NextResponse.json({ success: true });

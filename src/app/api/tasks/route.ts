@@ -85,23 +85,23 @@ export async function POST(req: Request) {
       }
     }
 
-    // Verify foreign key relations if supplied to prevent constraint errors
+    // Verify foreign key relations if supplied and ensure user ownership
     let validPlaylistId: string | null = null;
     if (playlistId) {
       const exists = await prisma.playlist.findUnique({ where: { id: playlistId } });
-      if (exists) validPlaylistId = playlistId;
+      if (exists && exists.userId === user.id) validPlaylistId = playlistId;
     }
 
     let validPlaylistVideoId: string | null = null;
     if (playlistVideoId) {
-      const exists = await prisma.playlistVideo.findUnique({ where: { id: playlistVideoId } });
-      if (exists) validPlaylistVideoId = playlistVideoId;
+      const exists = await prisma.playlistVideo.findUnique({ where: { id: playlistVideoId }, include: { playlist: true } });
+      if (exists && exists.playlist.userId === user.id) validPlaylistVideoId = playlistVideoId;
     }
 
     let validGoalId: string | null = null;
     if (goalId) {
       const exists = await prisma.goal.findUnique({ where: { id: goalId } });
-      if (exists) validGoalId = goalId;
+      if (exists && exists.userId === user.id) validGoalId = goalId;
     }
 
     const task = await prisma.task.create({

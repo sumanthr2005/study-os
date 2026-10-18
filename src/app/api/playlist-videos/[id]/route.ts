@@ -19,6 +19,10 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       return NextResponse.json({ error: 'Video not found' }, { status: 404 });
     }
 
+    if (currentVideo.playlist.userId !== user.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+    }
+
     const wasCompleted = currentVideo.completed;
     const isNowCompleted = completed !== undefined ? Boolean(completed) : wasCompleted;
 

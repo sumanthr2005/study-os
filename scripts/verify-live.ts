@@ -4,16 +4,62 @@ import { calculatePlaylistPlanMetrics } from '../src/lib/planner';
 
 const BASE_URL = 'http://localhost:3000';
 
+let activeCookie = '';
+let activeToken = '';
+
 async function testFetch(path: string, options?: RequestInit) {
   const url = `${BASE_URL}${path}`;
-  const res = await fetch(url, options);
+  const headers = new Headers(options?.headers || {});
+  if (activeCookie && !headers.has('cookie')) {
+    headers.set('cookie', activeCookie);
+  }
+  if (activeToken && !headers.has('authorization')) {
+    headers.set('authorization', `Bearer ${activeToken}`);
+  }
+  const res = await fetch(url, { ...options, headers, redirect: 'manual' });
+  
+  let setCookieHeader = '';
+  if (typeof (res.headers as any).getSetCookie === 'function') {
+    const cookiesArr = (res.headers as any).getSetCookie();
+    setCookieHeader = cookiesArr.join('; ');
+  } else {
+    setCookieHeader = res.headers.get('set-cookie') || '';
+  }
+
+  if (setCookieHeader) {
+    if (setCookieHeader.includes('study_os_session=;') || setCookieHeader.includes('Max-Age=0')) {
+      activeCookie = '';
+      activeToken = '';
+    } else {
+      const match = setCookieHeader.match(/study_os_session=([^;]+)/);
+      if (match) {
+        activeCookie = `study_os_session=${match[1]}`;
+        activeToken = match[1];
+      }
+    }
+  }
+
   let data: any = null;
   const contentType = res.headers.get('content-type') || '';
   if (contentType.includes('application/json')) {
-    data = await res.json();
+    try {
+      data = await res.json();
+    } catch {
+      data = null;
+    }
   } else {
-    data = await res.text();
+    try {
+      data = await res.text();
+    } catch {
+      data = null;
+    }
   }
+
+  if (data?.token && typeof data.token === 'string') {
+    activeToken = data.token;
+    activeCookie = `study_os_session=${data.token}`;
+  }
+
   return { status: res.status, ok: res.ok, data, headers: res.headers };
 }
 
@@ -54,6 +100,8 @@ async function runLiveVerification() {
     '/practice',
     '/wellness',
     '/settings',
+    '/login',
+    '/register',
   ];
 
   for (const page of pagesToTest) {
@@ -65,6 +113,11 @@ async function runLiveVerification() {
       record(`Page route ${page}`, false, e.message);
     }
   }
+
+  // --- AUTHENTICATE TEST SESSION ---
+  console.log('\n--- AUTHENTICATING TEST SESSION ---');
+  const initAuth = await testFetch('/api/auth/demo-login', { method: 'POST' });
+  record('Authenticate demo session for functional API tests', initAuth.status === 200, `Authenticated as ${initAuth.data?.user?.email}`);
 
   // --- SECTION 2: VERIFY YOUTUBE API CONFIGURATION & URL VALIDATION ---
   console.log('\n--- SECTION 2: VERIFYING YOUTUBE WORKFLOW & CONFIGURATION ---');
@@ -315,6 +368,58 @@ async function runLiveVerification() {
 
   const exportCsvRes = await testFetch('/api/export?format=csv');
   record('Export study sessions as CSV /api/export?format=csv', exportCsvRes.status === 200 && exportCsvRes.data.includes('ID,Subject,Mode'), `CSV received`);
+
+  // --- SECTION 10: AUTHENTICATION & SESSION LIFECYCLE ---
+  console.log('\n--- SECTION 10: VERIFYING AUTHENTICATION & SESSIONS ---');
+  // Test Demo Login
+  const demoLoginRes = await testFetch('/api/auth/demo-login', { method: 'POST' });
+  record('Demo login /api/auth/demo-login', demoLoginRes.status === 200 && Boolean(demoLoginRes.data?.user?.email), `User: ${demoLoginRes.data?.user?.email}`);
+
+  // Test Session Status
+  const authMeRes = await testFetch('/api/auth/me');
+  record('Session profile query /api/auth/me', authMeRes.status === 200 && Boolean(authMeRes.data?.user?.name), `Authenticated: ${authMeRes.data?.authenticated}`);
+
+  // Test New User Registration
+  const liveTestEmail = `live_verify_${Date.now()}@studyos.dev`;
+  const registerRes = await testFetch('/api/auth/register', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      email: liveTestEmail,
+      name: 'Live Verify Engineer',
+      password: 'LivePassword123!',
+    }),
+  });
+  record('Register new user /api/auth/register', registerRes.status === 201 && Boolean(registerRes.data?.user?.id), `Created: ${registerRes.data?.user?.email}`);
+
+  // Test User Login
+  const loginRes = await testFetch('/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      email: liveTestEmail,
+      password: 'LivePassword123!',
+    }),
+  });
+  record('Login with credentials /api/auth/login', loginRes.status === 200 && Boolean(loginRes.data?.token), `Token: ${loginRes.data?.token?.substring(0, 10)}...`);
+
+  // Test Invalid Password Rejection
+  const badLoginRes = await testFetch('/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      email: liveTestEmail,
+      password: 'WrongPassword!',
+    }),
+  });
+  record('Invalid password rejected /api/auth/login', badLoginRes.status === 401, `Status: ${badLoginRes.status}`);
+
+  // Test Logout
+  const logoutRes = await testFetch('/api/auth/logout', { method: 'POST' });
+  record('Logout session invalidation /api/auth/logout', logoutRes.status === 200, 'Session cleared');
+
+  // Clean up registered live test user
+  await prisma.user.deleteMany({ where: { email: liveTestEmail } });
 
   console.log('\n====================================================');
   console.log(`🎉 ALL ${results.length} LIVE VERIFICATION TESTS PASSED SUCCESSFULLY!`);

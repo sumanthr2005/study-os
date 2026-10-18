@@ -1,13 +1,24 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getOrCreateDefaultUser } from '@/lib/user';
+import { getAuthenticatedUser } from '@/lib/auth';
 import { calculateLevel, calculateProductivityScore, formatDateToYYYYMMDD } from '@/lib/utils';
 import { calculateRankAndLevel } from '@/lib/gamification';
 
+export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    const user = await getOrCreateDefaultUser();
+    let user = await getAuthenticatedUser(req);
+    
+    // In development or if not yet signed in, use fallback if permitted
+    if (!user) {
+      if (process.env.NODE_ENV === 'production' && process.env.ALLOW_DEV_FALLBACK !== 'true') {
+        return NextResponse.json({ authenticated: false, user: null }, { status: 401 });
+      }
+      user = await getOrCreateDefaultUser(req);
+    }
+
     const todayStr = formatDateToYYYYMMDD(new Date());
 
     // Gather today's stats for productivity score & dashboard summary
@@ -73,8 +84,12 @@ export async function GET() {
     const levelInfo = calculateLevel(user.totalXp);
     const rankInfo = calculateRankAndLevel(user.totalXp);
 
+    // Never expose passwordHash to the client
+    const { passwordHash: _, ...safeUser } = user as any;
+
     return NextResponse.json({
-      user,
+      authenticated: true,
+      user: safeUser,
       todaySummary: {
         actualStudySeconds,
         actualStudyMinutes,

@@ -77,8 +77,15 @@ export async function POST(req: Request) {
 
 export async function PATCH(req: Request) {
   try {
+    const user = await getOrCreateDefaultUser();
     const body = await req.json();
     const { id, currentValue, status, title } = body;
+
+    if (!id) return NextResponse.json({ error: 'Goal ID is required' }, { status: 400 });
+
+    const existing = await prisma.goal.findUnique({ where: { id } });
+    if (!existing) return NextResponse.json({ error: 'Goal not found' }, { status: 404 });
+    if (existing.userId !== user.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
 
     const updated = await prisma.goal.update({
       where: { id },

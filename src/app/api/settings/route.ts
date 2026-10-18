@@ -5,7 +5,8 @@ import { getOrCreateDefaultUser } from '@/lib/user';
 export async function GET() {
   try {
     const user = await getOrCreateDefaultUser();
-    return NextResponse.json(user);
+    const { passwordHash: _, ...safeUser } = user as any;
+    return NextResponse.json(safeUser);
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
@@ -45,7 +46,8 @@ export async function PATCH(req: Request) {
       },
     });
 
-    return NextResponse.json(updated);
+    const { passwordHash: _, ...safeUpdated } = updated as any;
+    return NextResponse.json(safeUpdated);
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

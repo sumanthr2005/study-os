@@ -17,6 +17,8 @@ import {
   Database,
   Info,
   Clock,
+  LogOut,
+  User as UserIcon,
 } from 'lucide-react';
 
 export function Navbar() {
@@ -59,6 +61,15 @@ export function Navbar() {
       showToast('Seed Failed', e.message, 'error');
     } finally {
       setIsResettingSeed(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+      window.location.href = '/login';
+    } catch {
+      window.location.href = '/login';
     }
   };
 
@@ -186,6 +197,25 @@ export function Navbar() {
           >
             {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </button>
+
+          {/* User Profile / Logout */}
+          <div className="flex items-center gap-2 pl-2 border-l border-slate-800">
+            <div className="hidden sm:flex flex-col text-right">
+              <span className="text-xs font-semibold text-slate-200 truncate max-w-[110px]">
+                {userSummary?.user?.name || 'Explorer'}
+              </span>
+              {userSummary?.user?.isDemo && (
+                <span className="text-[9px] text-amber-400 font-bold uppercase tracking-wider">Demo Mode</span>
+              )}
+            </div>
+            <button
+              onClick={handleLogout}
+              title="Sign Out"
+              className="p-2 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-800/80 transition-colors"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
+          </div>
         </div>
       </div>
 

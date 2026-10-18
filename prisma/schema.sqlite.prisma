@@ -29,6 +29,9 @@ model User {
   habitsWeight              Int                @default(15)
   healthWeight              Int                @default(10)
   
+  passwordHash              String?
+  isDemo                    Boolean            @default(false)
+
   playlists                 Playlist[]
   studySessions             StudySession[]
   tasks                     Task[]
@@ -46,9 +49,22 @@ model User {
   aiRecommendations         AiRecommendation[]
   xpLedger                  XpLedger[]
   achievements              AchievementUnlock[]
+  sessions                  Session[]
 
   createdAt                 DateTime           @default(now())
   updatedAt                 DateTime           @updatedAt
+}
+
+model Session {
+  id                        String             @id @default(cuid())
+  userId                    String
+  user                      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token                     String             @unique
+  expiresAt                 DateTime
+  createdAt                 DateTime           @default(now())
+
+  @@index([userId])
+  @@index([token])
 }
 
 

@@ -87,6 +87,7 @@ export async function PATCH(req: Request) {
 
     const existing = await prisma.revision.findUnique({ where: { id } });
     if (!existing) return NextResponse.json({ error: 'Revision not found' }, { status: 404 });
+    if (existing.userId !== user.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
 
     const updated = await prisma.revision.update({
       where: { id },

@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getOrCreateDefaultUser } from '@/lib/user';
 import { calculatePlaylistMetrics } from '@/lib/utils';
 
 export async function GET(req: Request, { params }: { params: { id: string } }) {
   try {
+    const user = await getOrCreateDefaultUser();
     const playlist = await prisma.playlist.findUnique({
       where: { id: params.id },
       include: {
@@ -15,6 +17,10 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
 
     if (!playlist) {
       return NextResponse.json({ error: 'Playlist not found' }, { status: 404 });
+    }
+
+    if (playlist.userId !== user.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
     const totalVideos = playlist.videos.length;
@@ -45,6 +51,15 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   try {
+    const user = await getOrCreateDefaultUser();
+    const existing = await prisma.playlist.findUnique({ where: { id: params.id } });
+    if (!existing) {
+      return NextResponse.json({ error: 'Playlist not found' }, { status: 404 });
+    }
+    if (existing.userId !== user.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+    }
+
     const body = await req.json();
     const { targetCompletionDate, availableStudyHoursPerDay, title, syncFrequency } = body;
 
@@ -70,6 +85,15 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
 export async function DELETE(req: Request, { params }: { params: { id: string } }) {
   try {
+    const user = await getOrCreateDefaultUser();
+    const existing = await prisma.playlist.findUnique({ where: { id: params.id } });
+    if (!existing) {
+      return NextResponse.json({ error: 'Playlist not found' }, { status: 404 });
+    }
+    if (existing.userId !== user.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+    }
+
     await prisma.playlist.delete({
       where: { id: params.id },
     });
