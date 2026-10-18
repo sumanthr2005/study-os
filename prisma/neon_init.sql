@@ -550,3 +550,41 @@ ALTER TABLE "Notification" ADD CONSTRAINT "Notification_userId_fkey" FOREIGN KEY
 -- AddForeignKey
 ALTER TABLE "AiRecommendation" ADD CONSTRAINT "AiRecommendation_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
+-- CreateTable
+CREATE TABLE IF NOT EXISTS "XpLedger" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "amount" INTEGER NOT NULL,
+    "actionType" TEXT NOT NULL,
+    "description" TEXT NOT NULL,
+    "eventKey" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "XpLedger_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE IF NOT EXISTS "AchievementUnlock" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "achievementId" TEXT NOT NULL,
+    "unlockedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "AchievementUnlock_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateIndex
+CREATE UNIQUE INDEX IF NOT EXISTS "XpLedger_userId_eventKey_key" ON "XpLedger"("userId", "eventKey");
+CREATE INDEX IF NOT EXISTS "XpLedger_userId_idx" ON "XpLedger"("userId");
+CREATE INDEX IF NOT EXISTS "XpLedger_actionType_idx" ON "XpLedger"("actionType");
+CREATE INDEX IF NOT EXISTS "XpLedger_createdAt_idx" ON "XpLedger"("createdAt");
+
+-- CreateIndex
+CREATE UNIQUE INDEX IF NOT EXISTS "AchievementUnlock_userId_achievementId_key" ON "AchievementUnlock"("userId", "achievementId");
+CREATE INDEX IF NOT EXISTS "AchievementUnlock_userId_idx" ON "AchievementUnlock"("userId");
+
+-- AddForeignKey
+ALTER TABLE "XpLedger" ADD CONSTRAINT "XpLedger_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "AchievementUnlock" ADD CONSTRAINT "AchievementUnlock_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+

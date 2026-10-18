@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getOrCreateDefaultUser } from '@/lib/user';
 import { formatDateToYYYYMMDD } from '@/lib/utils';
+import { awardServerXp } from '@/lib/gamification';
+
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   try {
@@ -45,13 +47,19 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       completed = true;
     }
 
-    // Award +5 XP on completion
+    // Award +5 XP on completion via idempotent ledger (keyed by habitId and date)
+    let xpAwarded = 0;
     if (completed) {
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { totalXp: { increment: 5 } },
+      const xpRes = await awardServerXp({
+        userId: user.id,
+        actionType: 'HABIT_COMPLETED',
+        amount: 5,
+        description: `Completed habit "${habit.name}" for ${date}`,
+        eventKey: `habit:${params.id}:${date}`,
       });
+      xpAwarded = xpRes.awarded ? xpRes.amount : 0;
     }
+
 
     return NextResponse.json({ success: true, completed, date });
   } catch (error: any) {

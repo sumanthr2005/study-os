@@ -1,3 +1,5 @@
-import RevisionPage from '../revision/page';
+import { redirect } from 'next/navigation';
 
-export default RevisionPage;
+export default function RevisionsRedirectPage() {
+  redirect('/practice?tab=revisions');
+}

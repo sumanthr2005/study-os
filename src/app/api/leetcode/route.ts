@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getOrCreateDefaultUser } from '@/lib/user';
 import { formatDateToYYYYMMDD } from '@/lib/utils';
+import { awardServerXp } from '@/lib/gamification';
+
 
 export async function GET() {
   try {
@@ -100,13 +102,17 @@ export async function POST(req: Request) {
       });
     }
 
-    // Award XP
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        totalXp: { increment: xpEarned },
-      },
+    const xpToAward = difficulty === 'HARD' ? 35 : difficulty === 'MEDIUM' ? 20 : 10;
+
+    // Award XP through server-authoritative ledger with idempotency
+    const xpResult = await awardServerXp({
+      userId: user.id,
+      actionType: `LEETCODE_${difficulty}`,
+      amount: xpToAward,
+      description: `Solved ${difficulty} DSA problem: "${title}"`,
+      eventKey: `problem:${problem.id}`,
     });
+
 
     return NextResponse.json({
       success: true,

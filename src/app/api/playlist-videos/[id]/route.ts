@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getOrCreateDefaultUser } from '@/lib/user';
+import { awardServerXp } from '@/lib/gamification';
+
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   try {
@@ -53,15 +55,19 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       },
     });
 
-    // If just completed, award 10 XP to user!
+    // If just completed, award 10 XP to user via idempotent ledger!
+    let xpAwarded = 0;
     if (!wasCompleted && isNowCompleted) {
-      await prisma.user.update({
-        where: { id: user.id },
-        data: {
-          totalXp: { increment: 10 },
-        },
+      const xpRes = await awardServerXp({
+        userId: user.id,
+        actionType: 'VIDEO_COMPLETION',
+        amount: 10,
+        description: `Completed roadmap module "${currentVideo.title}"`,
+        eventKey: `video:${currentVideo.youtubeVideoId}`,
       });
+      xpAwarded = xpRes.awarded ? xpRes.amount : 0;
     }
+
 
     return NextResponse.json({
       success: true,

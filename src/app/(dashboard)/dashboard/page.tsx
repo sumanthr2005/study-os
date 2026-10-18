@@ -2,11 +2,16 @@ import React from 'react';
 import { prisma } from '@/lib/db';
 import { getOrCreateDefaultUser } from '@/lib/user';
 import { calculatePlaylistPlanMetrics } from '@/lib/planner';
+import { calculateProductivityScore } from '@/lib/utils';
+import { calculateRankAndLevel, getLiveDailyQuests, ACHIEVEMENT_DEFINITIONS } from '@/lib/gamification';
+import { HolographicCore } from '@/components/dashboard/HolographicCore';
+import { DailyQuestsWidget } from '@/components/dashboard/DailyQuestsWidget';
+import { TodayStrategicPlan, StrategicItem } from '@/components/dashboard/TodayStrategicPlan';
+import { WeeklyReviewCard } from '@/components/dashboard/WeeklyReviewCard';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { PlaylistProgressWidget } from '@/components/dashboard/PlaylistProgressWidget';
-import { DailyPaceWidget } from '@/components/dashboard/DailyPaceWidget';
 import { QuickActions } from '@/components/dashboard/QuickActions';
-import { format } from 'date-fns';
+import { format, subDays } from 'date-fns';
 import {
   Timer,
   PlaySquare,
@@ -14,9 +19,7 @@ import {
   CheckSquare,
   Flame,
   Award,
-  Droplets,
-  Calendar,
-  Sparkles,
+  Zap,
 } from 'lucide-react';
 
 export const revalidate = 0; // Always fresh database read
@@ -27,14 +30,16 @@ export default async function DashboardPage() {
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
 
-  // 1. Fetch real persisted playlists
+  const endOfToday = new Date();
+  endOfToday.setHours(23, 59, 59, 999);
+
+  // 1. Fetch playlists & metrics
   const playlists = await prisma.playlist.findMany({
     where: { userId: user.id, isArchived: false },
     include: { videos: true },
     orderBy: { updatedAt: 'desc' },
   });
 
-  // Calculate each playlist's metrics
   const playlistMetrics = playlists.map(p => {
     const metrics = calculatePlaylistPlanMetrics({
       videos: p.videos,
@@ -88,56 +93,186 @@ export default async function DashboardPage() {
   // 6. Fetch pending tasks
   const pendingTasks = await prisma.task.findMany({
     where: { userId: user.id, status: { not: 'COMPLETED' } },
+    orderBy: [{ priority: 'desc' }, { deadline: 'asc' }],
+    take: 5,
   });
 
-  // 7. Calculate overall roadmap completion across all playlists
+  // 7. Fetch revisions due today
+  const revisionsDue = await prisma.revision.findMany({
+    where: {
+      userId: user.id,
+      completed: false,
+      scheduledFor: { lte: endOfToday },
+    },
+    take: 3,
+  });
+
+  // 8. Fetch upcoming placement companies
+  const upcomingCompanies = await prisma.placementCompany.findMany({
+    where: { userId: user.id, targetDate: { not: null } },
+    orderBy: { targetDate: 'asc' },
+    take: 2,
+  });
+
+  // 9. Fetch next incomplete playlist video
+  const nextVideo = await prisma.playlistVideo.findFirst({
+    where: {
+      playlist: { userId: user.id, isArchived: false },
+      completed: false,
+    },
+    include: { playlist: true },
+    orderBy: { position: 'asc' },
+  });
+
+  // 10. Gamification Data
+  const rankInfo = calculateRankAndLevel(user.totalXp);
+  const dailyQuests = await getLiveDailyQuests(user.id);
+  const achievementsCount = await prisma.achievementUnlock.count({
+    where: { userId: user.id },
+  });
+
+  // 11. Productivity Score
+  const scoreResult = calculateProductivityScore(
+    {
+      actualStudyMinutes: Math.round(todayStudySeconds / 60),
+      studyGoalMinutes: user.dailyStudyTargetMinutes,
+      leetcodeSolvedToday: todayLeetcode.length,
+      leetcodeGoalToday: user.leetcodeDailyTarget,
+      videosCompletedToday: playlists.reduce((acc, p) => acc + p.videos.filter(v => v.completed && v.completedAt && v.completedAt >= todayStart).length, 0),
+      videosGoalToday: 4,
+      habitsCompletedToday: habitsDoneToday,
+      totalHabitsToday: habits.length || 1,
+      waterDrankMl: todayWaterMl,
+      waterGoalMl: user.waterDailyTargetMl,
+    },
+    {
+      study: user.studyWeight,
+      coding: user.codingWeight,
+      learning: user.learningWeight,
+      habits: user.habitsWeight,
+      health: user.healthWeight,
+    }
+  );
+
+  // 12. Build Today's Strategic Plan Items
+  const strategicItems: StrategicItem[] = [];
+
+  // Add revisions due
+  for (const r of revisionsDue) {
+    strategicItems.push({
+      id: `rev-${r.id}`,
+      title: `Revise: ${r.title}`,
+      subtitle: `${r.subjectOrTopic} • Due for spaced repetition today`,
+      category: 'REVISION',
+      priority: 'HIGH',
+      estimatedMinutes: 25,
+      actionUrl: '/practice',
+    });
+  }
+
+  // Add top priority tasks
+  for (const t of pendingTasks.slice(0, 3)) {
+    strategicItems.push({
+      id: `task-${t.id}`,
+      title: t.title,
+      subtitle: `${t.category} backlog task${t.deadline ? ` • Due ${format(new Date(t.deadline), 'MMM d')}` : ''}`,
+      category: 'TASK',
+      priority: t.priority as any,
+      estimatedMinutes: t.estimatedMinutes,
+      actionUrl: '/tasks',
+    });
+  }
+
+  // Add next roadmap video
+  if (nextVideo) {
+    strategicItems.push({
+      id: `vid-${nextVideo.id}`,
+      title: nextVideo.title,
+      subtitle: `${nextVideo.playlist.title} (Module #${nextVideo.position})`,
+      category: 'ROADMAP',
+      priority: 'MEDIUM',
+      estimatedMinutes: Math.round(nextVideo.durationSeconds / 60),
+      actionUrl: `/playlists/${nextVideo.playlistId}`,
+    });
+  }
+
+  // Add upcoming placement assessment
+  for (const c of upcomingCompanies) {
+    if (c.targetDate) {
+      strategicItems.push({
+        id: `comp-${c.id}`,
+        title: `${c.name} (${c.role}) Assessment`,
+        subtitle: `Stage: ${c.stage} • Target date ${format(new Date(c.targetDate), 'MMM d, yyyy')}`,
+        category: 'PLACEMENT',
+        priority: 'URGENT',
+        actionUrl: '/placement',
+      });
+    }
+  }
+
+  // 13. Past 7 days weekly analysis
+  const weekStart = subDays(new Date(), 6);
+  weekStart.setHours(0, 0, 0, 0);
+
+  const pastWeekSessions = await prisma.studySession.findMany({
+    where: { userId: user.id, startTime: { gte: weekStart } },
+  });
+
+  const pastWeekProblems = await prisma.leetCodeProblem.findMany({
+    where: { userId: user.id, solvedAt: { gte: weekStart } },
+  });
+
+  const weeklyData = Array.from({ length: 7 }, (_, i) => {
+    const d = subDays(new Date(), 6 - i);
+    const dayKey = format(d, 'yyyy-MM-dd');
+    const dayLabel = format(d, 'EEE');
+    const daySessions = pastWeekSessions.filter(s => format(new Date(s.startTime), 'yyyy-MM-dd') === dayKey);
+    const seconds = daySessions.reduce((acc, s) => acc + s.durationSeconds, 0);
+    return {
+      day: dayLabel,
+      hours: Math.round((seconds / 3600) * 10) / 10,
+      isToday: dayKey === todayStr,
+    };
+  });
+
+  const totalWeeklyHours = weeklyData.reduce((acc, d) => acc + d.hours, 0);
+
+  // Roadmap metrics
   const totalRoadmapVideos = playlists.reduce((acc, p) => acc + p.totalVideos, 0);
   const completedRoadmapVideos = playlists.reduce((acc, p) => acc + p.completedVideos, 0);
   const roadmapPercent = totalRoadmapVideos > 0
     ? Math.round((completedRoadmapVideos / totalRoadmapVideos) * 100)
     : 0;
 
+  // Intelligent suggestion based on evidence
+  let heuristicSuggestion = 'Maintain regular Pomodoro intervals to sustain deep focus without fatigue.';
+  if (revisionsDue.length > 0) {
+    heuristicSuggestion = `Prioritize clearing your ${revisionsDue.length} due revision topics before beginning new roadmap lectures.`;
+  } else if (todayLeetcode.length < user.leetcodeDailyTarget) {
+    heuristicSuggestion = `Solve ${user.leetcodeDailyTarget - todayLeetcode.length} more DSA problem(s) today to fulfill your daily problem-solving target.`;
+  } else if (Number(todayStudyHours) < user.dailyStudyTargetMinutes / 60) {
+    heuristicSuggestion = `Log one more 45-minute focus session on ${nextVideo?.playlist.title || 'Core CS'} to achieve your daily study hours target.`;
+  }
+
   return (
     <div className="space-y-6">
-      {/* Hero Welcome Banner */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 rounded-2xl border border-indigo-500/30 bg-gradient-to-r from-indigo-950/40 via-purple-950/20 to-slate-900 shadow-xl">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-xs font-bold uppercase tracking-wider text-indigo-400">
-              Personal Learning Operating System
-            </span>
-            <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-              Live Database
-            </span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white light:text-slate-900">
-            Welcome back, {user.name} 👋
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-300 light:text-slate-600 mt-1 max-w-xl">
-            Placement Prep Roadmap: <strong>Striver A2Z DSA</strong>, LeetCode target <strong>{user.leetcodeDailyTarget} problems/day</strong>, study target <strong>{(user.dailyStudyTargetMinutes / 60).toFixed(0)}h/day</strong>.
-          </p>
-        </div>
+      {/* 1. Flagship 3D Holographic Command Core */}
+      <HolographicCore
+        level={rankInfo.level}
+        rankTitle={rankInfo.title}
+        totalXp={user.totalXp}
+        todayStudySeconds={todayStudySeconds}
+        dailyTargetMinutes={user.dailyStudyTargetMinutes}
+        currentStreak={user.currentStreak}
+        completedQuests={dailyQuests.filter(q => q.completed).length}
+        totalQuests={dailyQuests.length}
+        productivityScore={scoreResult.totalScore}
+      />
 
-        <div className="flex items-center gap-3">
-          <div className="text-right">
-            <div className="text-xs text-slate-400">Study Streak</div>
-            <div className="text-xl font-black text-amber-400 flex items-center justify-end gap-1">
-              <Flame className="h-5 w-5 fill-amber-400" />
-              {user.currentStreak} Days
-            </div>
-          </div>
-          <div className="h-10 w-[1px] bg-slate-800" />
-          <div className="text-right">
-            <div className="text-xs text-slate-400">Level {user.level}</div>
-            <div className="text-xl font-black text-indigo-400">{user.totalXp} XP</div>
-          </div>
-        </div>
-      </div>
-
-      {/* Top 4 Stat Cards */}
+      {/* 2. Top Metric Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
-          title="Today's Study Time"
+          title="Today's Focus Time"
           value={`${todayStudyHours}h`}
           subvalue={`Target: ${(user.dailyStudyTargetMinutes / 60).toFixed(0)}h / day`}
           icon={Timer}
@@ -146,9 +281,9 @@ export default async function DashboardPage() {
         />
 
         <StatCard
-          title="Roadmap Videos"
+          title="Roadmap Progress"
           value={`${completedRoadmapVideos} / ${totalRoadmapVideos}`}
-          subvalue={`${roadmapPercent}% total roadmap completed`}
+          subvalue={`${roadmapPercent}% total roadmap modules`}
           icon={PlaySquare}
           color="emerald"
         />
@@ -162,7 +297,7 @@ export default async function DashboardPage() {
         />
 
         <StatCard
-          title="Pending Tasks"
+          title="Action Backlog"
           value={pendingTasks.length}
           subvalue={`${habitsDoneToday}/${habits.length} habits done today`}
           icon={CheckSquare}
@@ -170,22 +305,34 @@ export default async function DashboardPage() {
         />
       </div>
 
-      {/* Daily Pace & Target Velocity */}
-      <DailyPaceWidget
-        todayStudySeconds={todayStudySeconds}
-        dailyTargetMinutes={user.dailyStudyTargetMinutes}
-        leetcodeToday={todayLeetcode.length}
-        leetcodeDailyTarget={user.leetcodeDailyTarget}
-        waterTodayMl={todayWaterMl}
-        waterDailyTargetMl={user.waterDailyTargetMl}
-        habitsTodayDone={habitsDoneToday}
-        habitsTotal={habits.length}
+      {/* 3. Daily Quests & Strategic Plan Split */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div className="lg:col-span-5">
+          <DailyQuestsWidget
+            quests={dailyQuests}
+            achievementsCount={achievementsCount}
+            totalAchievements={ACHIEVEMENT_DEFINITIONS.length}
+          />
+        </div>
+
+        <div className="lg:col-span-7">
+          <TodayStrategicPlan items={strategicItems} />
+        </div>
+      </div>
+
+      {/* 4. Weekly Review Chart & Suggestions */}
+      <WeeklyReviewCard
+        weeklyData={weeklyData}
+        totalWeeklyHours={totalWeeklyHours}
+        totalProblemsWeek={pastWeekProblems.length}
+        weeklyHabitRate={Math.round((habitsDoneToday / (habits.length || 1)) * 100)}
+        heuristicSuggestion={heuristicSuggestion}
       />
 
-      {/* Quick Action Toolbar */}
+      {/* 5. Quick Actions Bar */}
       <QuickActions />
 
-      {/* Active Playlists Roadmap Widget */}
+      {/* 6. Active Roadmaps Widget */}
       <PlaylistProgressWidget playlists={playlists} />
     </div>
   );

@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getOrCreateDefaultUser } from '@/lib/user';
 import { calculateLevel, calculateProductivityScore, formatDateToYYYYMMDD } from '@/lib/utils';
+import { calculateRankAndLevel } from '@/lib/gamification';
+
 
 export async function GET() {
   try {
@@ -69,6 +71,7 @@ export async function GET() {
     );
 
     const levelInfo = calculateLevel(user.totalXp);
+    const rankInfo = calculateRankAndLevel(user.totalXp);
 
     return NextResponse.json({
       user,
@@ -88,7 +91,9 @@ export async function GET() {
       },
       productivityScore: scoreResult,
       levelInfo,
+      rankInfo,
     });
+
   } catch (error: any) {
     console.error('Error fetching user summary:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });

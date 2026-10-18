@@ -44,10 +44,13 @@ model User {
   wellnessEntries           WellnessEntry[]
   notifications             Notification[]
   aiRecommendations         AiRecommendation[]
+  xpLedger                  XpLedger[]
+  achievements              AchievementUnlock[]
 
   createdAt                 DateTime           @default(now())
   updatedAt                 DateTime           @updatedAt
 }
+
 
 model Playlist {
   id                         String          @id @default(cuid())
@@ -441,3 +444,31 @@ model AiRecommendation {
   @@unique([userId, planDate])
   @@index([userId])
 }
+
+model XpLedger {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount      Int
+  actionType  String   // STUDY_SESSION, VIDEO_COMPLETION, LEETCODE_EASY, LEETCODE_MEDIUM, LEETCODE_HARD, DAILY_TASKS_BONUS, DAILY_TARGET_BONUS, STREAK_MILESTONE, REVISION_COMPLETED, HABIT_COMPLETED, QUEST_COMPLETED
+  description String
+  eventKey    String   // Idempotency key (e.g. "session:cmvd...", "video:0bHoB...", "problem:15:2026-10-18")
+  createdAt   DateTime @default(now())
+
+  @@unique([userId, eventKey])
+  @@index([userId])
+  @@index([actionType])
+  @@index([createdAt])
+}
+
+model AchievementUnlock {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievementId String   // e.g. "first_session", "streak_7", "dsa_25", etc.
+  unlockedAt    DateTime @default(now())
+
+  @@unique([userId, achievementId])
+  @@index([userId])
+}
+

@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getOrCreateDefaultUser } from '@/lib/user';
+import { awardServerXp } from '@/lib/gamification';
+
 
 export async function GET() {
   try {
@@ -115,12 +117,18 @@ export async function PATCH(req: Request) {
       });
     }
 
+    let xpEarned = 0;
     if (completed) {
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { totalXp: { increment: 20 } },
+      const xpRes = await awardServerXp({
+        userId: user.id,
+        actionType: 'REVISION_COMPLETED',
+        amount: 20,
+        description: `Completed revision: "${existing.title}"`,
+        eventKey: `revision:${existing.id}:${existing.repetitionNumber}`,
       });
+      xpEarned = xpRes.awarded ? xpRes.amount : 0;
     }
+
 
     return NextResponse.json({
       success: true,

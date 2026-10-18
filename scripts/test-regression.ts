@@ -167,6 +167,37 @@ async function runRegressionTestSuite() {
   assert(createdDefensiveTask.status.length > 0, 'Task status is non-empty string');
   await prisma.task.delete({ where: { id: createdDefensiveTask.id } });
 
+  // --------------------------------------------------------------------------
+  // TEST 9: XP Ledger Idempotency & Gamification Defense
+  // --------------------------------------------------------------------------
+  console.log('\n--- 9. XP LEDGER IDEMPOTENCY & GAMIFICATION DEFENSE ---');
+  const { awardServerXp } = await import('../src/lib/gamification');
+  const testEventKey = `test:idempotency:${Date.now()}`;
+  
+  // First attempt should grant XP
+  const award1 = await awardServerXp({
+    userId: user.id,
+    eventKey: testEventKey,
+    actionType: 'TEST_ACTION',
+    amount: 25,
+    description: 'First attempt test XP',
+  });
+  assert(award1.awarded === true && award1.amount === 25, 'First XP claim granted 25 XP');
+
+  // Second attempt with same eventKey MUST be denied
+  const award2 = await awardServerXp({
+    userId: user.id,
+    eventKey: testEventKey,
+    actionType: 'TEST_ACTION',
+    amount: 25,
+    description: 'Duplicate attempt test XP',
+  });
+  assert(award2.awarded === false && award2.amount === 0, 'Duplicate XP claim idempotently rejected with 0 XP');
+
+  // Clean up test ledger
+  await prisma.xpLedger.deleteMany({ where: { eventKey: testEventKey } });
+  assert(true, 'Test XP ledger entry cleaned up');
+
   console.log('\n====================================================');
   console.log(`🎉 ALL ${passed} REGRESSION ASSERTIONS PASSED!`);
   console.log('====================================================\n');

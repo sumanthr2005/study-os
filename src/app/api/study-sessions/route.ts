@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getOrCreateDefaultUser } from '@/lib/user';
+import { awardServerXp } from '@/lib/gamification';
+
 
 export async function GET(req: Request) {
   try {
@@ -125,13 +127,15 @@ export async function POST(req: Request) {
       },
     });
 
-    // Update user XP
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        totalXp: { increment: xpEarned },
-      },
+    // Award XP through server-authoritative ledger with idempotency
+    const xpResult = await awardServerXp({
+      userId: user.id,
+      actionType: 'STUDY_SESSION',
+      amount: xpEarned,
+      description: `Completed ${Math.round(durationSeconds / 60)}m focus session on ${subject}`,
+      eventKey: `session:${session.id}`,
     });
+
 
     // If linked to a valid task, update task's actualMinutes
     if (validTaskId) {

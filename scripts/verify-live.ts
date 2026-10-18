@@ -51,6 +51,7 @@ async function runLiveVerification() {
     '/notes',
     '/ai-planner',
     '/calendar',
+    '/practice',
     '/wellness',
     '/settings',
   ];
@@ -58,7 +59,8 @@ async function runLiveVerification() {
   for (const page of pagesToTest) {
     try {
       const res = await testFetch(page);
-      record(`Page route ${page}`, res.status === 200, `HTTP ${res.status}`);
+      const isOk = res.status === 200 || res.status === 307;
+      record(`Page route ${page}`, isOk, `HTTP ${res.status}`);
     } catch (e: any) {
       record(`Page route ${page}`, false, e.message);
     }
@@ -252,6 +254,14 @@ async function runLiveVerification() {
     }),
   });
   record('Log LeetCode problem /api/leetcode', leetcodeRes.status === 200, `Status: ${leetcodeRes.status}`);
+
+  // Gamification Engine API & Ledger
+  const gamificationRes = await testFetch('/api/gamification');
+  record(
+    'Query gamification rank & quests /api/gamification',
+    gamificationRes.status === 200 && Boolean(gamificationRes.data?.rankInfo?.title) && Array.isArray(gamificationRes.data?.dailyQuests),
+    `Rank: ${gamificationRes.data?.rankInfo?.title}, Quests: ${gamificationRes.data?.dailyQuests?.length}`
+  );
 
   // --- SECTION 8: STUDY CALCULATIONS ACCURACY ---
   console.log('\n--- SECTION 8: VERIFYING STUDY CALCULATIONS ---');
