@@ -9,6 +9,14 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     const body = await req.json().catch(() => ({}));
     const date = body.date || formatDateToYYYYMMDD(new Date());
 
+    const habit = await prisma.habit.findUnique({ where: { id: params.id } });
+    if (!habit) {
+      return NextResponse.json({ error: 'Habit not found' }, { status: 404 });
+    }
+    if (habit.userId !== user.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+    }
+
     const existing = await prisma.habitCompletion.findUnique({
       where: {
         habitId_date: {
@@ -17,6 +25,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         },
       },
     });
+
 
     let completed = true;
     if (existing) {

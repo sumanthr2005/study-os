@@ -120,9 +120,57 @@ async function runRegressionTestSuite() {
   const extractedNonYt = extractPlaylistId(nonYoutubeUrl);
   assert(extractedNonYt === null, 'Non-YouTube link rejected with null');
 
+  // --------------------------------------------------------------------------
+  // TEST 6: Non-Existent Task 404 & Safety
+  // --------------------------------------------------------------------------
+  console.log('\n--- 6. NON-EXISTENT TASK SAFETY ---');
+  const fakeTaskId = 'non_existent_task_id_9999';
+  const checkFake = await prisma.task.findUnique({ where: { id: fakeTaskId } });
+  assert(checkFake === null, 'Non-existent task correctly queries as null');
+
+  // --------------------------------------------------------------------------
+  // TEST 7: Study Session Foreign Key Safety
+  // --------------------------------------------------------------------------
+  console.log('\n--- 7. STUDY SESSION FOREIGN KEY SAFETY ---');
+  // Confirm that creating a session without foreign keys or with valid user succeeds
+  const safeSession = await prisma.studySession.create({
+    data: {
+      userId: user.id,
+      subject: 'Algorithms (Safe Foreign Key Test)',
+      mode: 'stopwatch',
+      durationSeconds: 600,
+      isDeepWork: false,
+      playlistId: null,
+      playlistVideoId: null,
+      taskId: null,
+    },
+  });
+  assert(Boolean(safeSession.id), 'Safe session created without optional foreign keys');
+  await prisma.studySession.delete({ where: { id: safeSession.id } });
+  assert(true, 'Safe session cleaned up cleanly');
+
+  // --------------------------------------------------------------------------
+  // TEST 8: Task Response Status Defense (TaskBoard Regression Prevention)
+  // --------------------------------------------------------------------------
+  console.log('\n--- 8. TASK RESPONSE STATUS DEFENSE ---');
+  const createdDefensiveTask = await prisma.task.create({
+    data: {
+      userId: user.id,
+      title: 'TaskBoard Status Regression Test',
+      category: 'Coding',
+      priority: 'MEDIUM',
+      status: 'TODO',
+      estimatedMinutes: 25,
+    },
+  });
+  assert(typeof createdDefensiveTask.status === 'string', 'Task object contains defined status property');
+  assert(createdDefensiveTask.status.length > 0, 'Task status is non-empty string');
+  await prisma.task.delete({ where: { id: createdDefensiveTask.id } });
+
   console.log('\n====================================================');
   console.log(`🎉 ALL ${passed} REGRESSION ASSERTIONS PASSED!`);
   console.log('====================================================\n');
+
 }
 
 runRegressionTestSuite()

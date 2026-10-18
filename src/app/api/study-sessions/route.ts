@@ -89,13 +89,32 @@ export async function POST(req: Request) {
     const hours = durationSeconds / 3600;
     const xpEarned = Math.max(5, Math.round(hours * 20));
 
+    // Validate foreign key relationships to prevent constraint errors
+    let validPlaylistId: string | null = null;
+    if (playlistId) {
+      const pExists = await prisma.playlist.findUnique({ where: { id: playlistId } });
+      if (pExists) validPlaylistId = playlistId;
+    }
+
+    let validPlaylistVideoId: string | null = null;
+    if (playlistVideoId) {
+      const vExists = await prisma.playlistVideo.findUnique({ where: { id: playlistVideoId } });
+      if (vExists) validPlaylistVideoId = playlistVideoId;
+    }
+
+    let validTaskId: string | null = null;
+    if (taskId) {
+      const tExists = await prisma.task.findUnique({ where: { id: taskId } });
+      if (tExists) validTaskId = taskId;
+    }
+
     const session = await prisma.studySession.create({
       data: {
         userId: user.id,
         subject,
-        playlistId: playlistId || null,
-        playlistVideoId: playlistVideoId || null,
-        taskId: taskId || null,
+        playlistId: validPlaylistId,
+        playlistVideoId: validPlaylistVideoId,
+        taskId: validTaskId,
         mode: mode || 'stopwatch',
         startTime: startTime ? new Date(startTime) : new Date(Date.now() - durationSeconds * 1000),
         endTime: endTime ? new Date(endTime) : new Date(),
@@ -114,15 +133,16 @@ export async function POST(req: Request) {
       },
     });
 
-    // If linked to a task, update task's actualMinutes
-    if (taskId) {
+    // If linked to a valid task, update task's actualMinutes
+    if (validTaskId) {
       await prisma.task.update({
-        where: { id: taskId },
+        where: { id: validTaskId },
         data: {
           actualMinutes: { increment: Math.round(durationSeconds / 60) },
         },
       });
     }
+
 
     return NextResponse.json({
       success: true,
