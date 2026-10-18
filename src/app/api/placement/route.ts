@@ -3,9 +3,9 @@ import { prisma } from '@/lib/prisma';
 import { getOrCreateDefaultUser } from '@/lib/user';
 import { PLACEMENT_SUBJECTS } from '@/lib/constants';
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    const user = await getOrCreateDefaultUser();
+    const user = await getOrCreateDefaultUser(req);
 
     const [companies, mockTests, dsaTopics] = await Promise.all([
       prisma.placementCompany.findMany({
@@ -59,13 +59,13 @@ export async function GET() {
       },
     });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: error.status || 500 });
   }
 }
 
 export async function POST(req: Request) {
   try {
-    const user = await getOrCreateDefaultUser();
+    const user = await getOrCreateDefaultUser(req);
     const body = await req.json();
     const { type } = body;
 
@@ -109,6 +109,6 @@ export async function POST(req: Request) {
 
     return NextResponse.json(company);
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: error.status || 500 });
   }
 }

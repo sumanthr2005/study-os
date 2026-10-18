@@ -2,19 +2,19 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getOrCreateDefaultUser } from '@/lib/user';
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    const user = await getOrCreateDefaultUser();
+    const user = await getOrCreateDefaultUser(req);
     const { passwordHash: _, ...safeUser } = user as any;
     return NextResponse.json(safeUser);
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: error.status || 500 });
   }
 }
 
 export async function PATCH(req: Request) {
   try {
-    const user = await getOrCreateDefaultUser();
+    const user = await getOrCreateDefaultUser(req);
     const body = await req.json();
 
     const {
@@ -49,6 +49,6 @@ export async function PATCH(req: Request) {
     const { passwordHash: _, ...safeUpdated } = updated as any;
     return NextResponse.json(safeUpdated);
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: error.status || 500 });
   }
 }

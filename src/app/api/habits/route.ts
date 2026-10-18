@@ -3,9 +3,9 @@ import { prisma } from '@/lib/prisma';
 import { getOrCreateDefaultUser } from '@/lib/user';
 import { formatDateToYYYYMMDD } from '@/lib/utils';
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    const user = await getOrCreateDefaultUser();
+    const user = await getOrCreateDefaultUser(req);
     const todayStr = formatDateToYYYYMMDD(new Date());
 
     // Calculate start date 90 days ago for heatmap
@@ -51,13 +51,13 @@ export async function GET() {
 
     return NextResponse.json(enriched);
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: error.status || 500 });
   }
 }
 
 export async function POST(req: Request) {
   try {
-    const user = await getOrCreateDefaultUser();
+    const user = await getOrCreateDefaultUser(req);
     const body = await req.json();
     const { name, description, category = 'Health', icon = 'CheckCircle', color = '#10B981' } = body;
 
@@ -78,6 +78,6 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ...habit, habit }, { status: 201 });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: error.status || 500 });
   }
 }

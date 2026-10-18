@@ -3,9 +3,9 @@ import { prisma } from '@/lib/prisma';
 import { getOrCreateDefaultUser } from '@/lib/user';
 import { DSA_TOPICS } from '@/lib/constants';
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    const user = await getOrCreateDefaultUser();
+    const user = await getOrCreateDefaultUser(req);
     let topics = await prisma.dsaTopic.findMany({
       where: { userId: user.id },
       orderBy: { createdAt: 'asc' },
@@ -48,13 +48,13 @@ export async function GET() {
       },
     });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: error.status || 500 });
   }
 }
 
 export async function PATCH(req: Request) {
   try {
-    const user = await getOrCreateDefaultUser();
+    const user = await getOrCreateDefaultUser(req);
     const body = await req.json();
     const { id, progressPercent, problemsSolved, confidence, revisionStatus, notes } = body;
 
@@ -77,6 +77,6 @@ export async function PATCH(req: Request) {
 
     return NextResponse.json(updated);
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: error.status || 500 });
   }
 }

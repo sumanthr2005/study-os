@@ -73,18 +73,33 @@ export async function initializeNewUserDefaults(userId: string): Promise<void> {
  * - In development / testing: checks session first; falls back to demo profile if unauthenticated.
  */
 export async function getOrCreateDefaultUser(req?: Request): Promise<User> {
-  const authUser = await getAuthenticatedUser(req);
+  // If in an HTTP request context, strictly resolve session
+  if (req) {
+    const authUser = await getAuthenticatedUser(req);
+    if (authUser) {
+      return authUser;
+    }
+    if (process.env.ALLOW_DEV_FALLBACK === 'true') {
+      return await getOrCreateDemoUser();
+    }
+    const err: any = new Error('Unauthorized: Authentication required');
+    err.status = 401;
+    throw err;
+  }
+
+  // If in Server Component context, try cookies() / headers()
+  const authUser = await getAuthenticatedUser();
   if (authUser) {
     return authUser;
   }
 
-  // In production, reject unauthenticated requests to prevent shared-profile data leakage
+  // In production, reject unauthenticated access
   if (process.env.NODE_ENV === 'production' && process.env.ALLOW_DEV_FALLBACK !== 'true') {
     const err: any = new Error('Unauthorized: Authentication required');
     err.status = 401;
     throw err;
   }
 
-  // Development fallback for local verification and automated testing
+  // Standalone development script fallback (e.g. test-regression, test-sync)
   return await getOrCreateDemoUser();
 }

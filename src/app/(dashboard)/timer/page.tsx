@@ -88,7 +88,7 @@ export default async function TimerPage() {
 
         {recentSessions.length === 0 ? (
           <Card className="text-center py-8 text-slate-400 text-xs">
-            No study sessions logged yet. Hit "Start Focus" above to begin your first deep work block!
+            No study sessions logged yet. Hit &quot;Start Focus&quot; above to begin your first deep work block!
           </Card>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">

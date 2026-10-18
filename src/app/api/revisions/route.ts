@@ -4,9 +4,9 @@ import { getOrCreateDefaultUser } from '@/lib/user';
 import { awardServerXp } from '@/lib/gamification';
 
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    const user = await getOrCreateDefaultUser();
+    const user = await getOrCreateDefaultUser(req);
     const endOfToday = new Date();
     endOfToday.setHours(23, 59, 59, 999);
 
@@ -26,13 +26,13 @@ export async function GET() {
       totalDueTodayCount: dueToday.length,
     });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: error.status || 500 });
   }
 }
 
 export async function POST(req: Request) {
   try {
-    const user = await getOrCreateDefaultUser();
+    const user = await getOrCreateDefaultUser(req);
     const body = await req.json();
     const { title, subjectOrTopic, intervalDays = 3, notes, referenceType = 'TOPIC', referenceId } = body;
 
@@ -75,13 +75,13 @@ export async function POST(req: Request) {
       message: `Revision scheduled for ${scheduledFor.toLocaleDateString()}`,
     });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: error.status || 500 });
   }
 }
 
 export async function PATCH(req: Request) {
   try {
-    const user = await getOrCreateDefaultUser();
+    const user = await getOrCreateDefaultUser(req);
     const body = await req.json();
     const { id, completed = true, scheduleNextIntervalDays } = body;
 
@@ -138,6 +138,6 @@ export async function PATCH(req: Request) {
       xpEarned: 20,
     });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: error.status || 500 });
   }
 }

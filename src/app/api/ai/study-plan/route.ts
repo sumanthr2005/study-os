@@ -5,7 +5,7 @@ import { getAIProvider } from '@/lib/ai';
 
 export async function POST(req: Request) {
   try {
-    const user = await getOrCreateDefaultUser();
+    const user = await getOrCreateDefaultUser(req);
     const body = await req.json().catch(() => ({}));
     const availableMinutes = parseInt(body.availableMinutes, 10) || 180; // default 3 hours
 
@@ -82,6 +82,6 @@ export async function POST(req: Request) {
     });
   } catch (error: any) {
     console.error('Error generating AI study plan:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: error.status || 500 });
   }
 }

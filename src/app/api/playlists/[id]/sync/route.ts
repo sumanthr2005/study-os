@@ -5,7 +5,7 @@ import { getOrCreateDefaultUser } from '@/lib/user';
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   try {
-    const user = await getOrCreateDefaultUser();
+    const user = await getOrCreateDefaultUser(req);
     const playlist = await prisma.playlist.findUnique({
       where: { id: params.id },
     });
@@ -32,6 +32,6 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     });
   } catch (error: any) {
     console.error('Playlist sync error:', error);
-    return NextResponse.json({ error: error.message || 'Sync failed' }, { status: 500 });
+    return NextResponse.json({ error: error.message || 'Sync failed' }, { status: error.status || 500 });
   }
 }

@@ -5,7 +5,7 @@ import { formatDateToYYYYMMDD } from '@/lib/utils';
 
 export async function GET(req: Request) {
   try {
-    const user = await getOrCreateDefaultUser();
+    const user = await getOrCreateDefaultUser(req);
     const url = new URL(req.url);
     const date = url.searchParams.get('date') || formatDateToYYYYMMDD(new Date());
 
@@ -43,13 +43,13 @@ export async function GET(req: Request) {
       dailyHistoryMap,
     });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: error.status || 500 });
   }
 }
 
 export async function POST(req: Request) {
   try {
-    const user = await getOrCreateDefaultUser();
+    const user = await getOrCreateDefaultUser(req);
     const body = await req.json();
     const amountMl = parseInt(body.amountMl, 10);
     const date = body.date || formatDateToYYYYMMDD(new Date());
@@ -87,6 +87,6 @@ export async function POST(req: Request) {
       xpAwarded,
     });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: error.status || 500 });
   }
 }

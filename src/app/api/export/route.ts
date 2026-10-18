@@ -4,7 +4,7 @@ import { getOrCreateDefaultUser } from '@/lib/user';
 
 export async function GET(req: Request) {
   try {
-    const user = await getOrCreateDefaultUser();
+    const user = await getOrCreateDefaultUser(req);
     const url = new URL(req.url);
     const format = url.searchParams.get('format') || 'json';
 
@@ -59,6 +59,6 @@ export async function GET(req: Request) {
 
     return NextResponse.json(exportData);
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: error.status || 500 });
   }
 }

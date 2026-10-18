@@ -5,9 +5,9 @@ import { formatDateToYYYYMMDD } from '@/lib/utils';
 import { awardServerXp } from '@/lib/gamification';
 
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    const user = await getOrCreateDefaultUser();
+    const user = await getOrCreateDefaultUser(req);
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
 
@@ -54,13 +54,13 @@ export async function GET() {
       problems: allProblems.slice(0, 50),
     });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: error.status || 500 });
   }
 }
 
 export async function POST(req: Request) {
   try {
-    const user = await getOrCreateDefaultUser();
+    const user = await getOrCreateDefaultUser(req);
     const body = await req.json();
     const { problemNumber, title, difficulty = 'MEDIUM', topic = 'Arrays', notes, solutionUrl, timeTakenMinutes } = body;
 
@@ -121,6 +121,6 @@ export async function POST(req: Request) {
       message: `Solved ${difficulty} problem "${title}". +${xpEarned} XP!`,
     });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: error.status || 500 });
   }
 }

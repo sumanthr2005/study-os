@@ -3,9 +3,9 @@ import { prisma } from '@/lib/prisma';
 import { getOrCreateDefaultUser } from '@/lib/user';
 import { formatDateToYYYYMMDD } from '@/lib/utils';
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    const user = await getOrCreateDefaultUser();
+    const user = await getOrCreateDefaultUser(req);
 
     // 1. Study Sessions
     const allSessions = await prisma.studySession.findMany({
@@ -149,6 +149,6 @@ export async function GET() {
       heatmapDays,
     });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: error.status || 500 });
   }
 }

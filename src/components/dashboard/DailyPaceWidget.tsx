@@ -35,7 +35,7 @@ export function DailyPaceWidget({
         <div className="flex items-center gap-2">
           <Target className="h-5 w-5 text-indigo-400" />
           <h3 className="text-base font-bold text-white light:text-slate-900">
-            Today's Target Velocity
+            Today&apos;s Target Velocity
           </h3>
         </div>
         <Badge variant={studyProgress >= 100 ? 'success' : studyProgress >= 60 ? 'info' : 'warning'}>

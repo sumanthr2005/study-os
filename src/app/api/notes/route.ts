@@ -4,7 +4,7 @@ import { getOrCreateDefaultUser } from '@/lib/user';
 
 export async function GET(req: Request) {
   try {
-    const user = await getOrCreateDefaultUser();
+    const user = await getOrCreateDefaultUser(req);
     const url = new URL(req.url);
     const relatedType = url.searchParams.get('relatedType');
     const relatedId = url.searchParams.get('relatedId');
@@ -20,13 +20,13 @@ export async function GET(req: Request) {
 
     return NextResponse.json(notes);
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: error.status || 500 });
   }
 }
 
 export async function POST(req: Request) {
   try {
-    const user = await getOrCreateDefaultUser();
+    const user = await getOrCreateDefaultUser(req);
     const body = await req.json();
     const { title, content, tags, relatedType = 'GENERAL', relatedId, isPinned = false } = body;
 
@@ -48,13 +48,13 @@ export async function POST(req: Request) {
 
     return NextResponse.json(note);
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: error.status || 500 });
   }
 }
 
 export async function PATCH(req: Request) {
   try {
-    const user = await getOrCreateDefaultUser();
+    const user = await getOrCreateDefaultUser(req);
     const body = await req.json();
     const { id, title, content, tags, isPinned } = body;
 
@@ -76,13 +76,13 @@ export async function PATCH(req: Request) {
 
     return NextResponse.json(updated);
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: error.status || 500 });
   }
 }
 
 export async function DELETE(req: Request) {
   try {
-    const user = await getOrCreateDefaultUser();
+    const user = await getOrCreateDefaultUser(req);
     const url = new URL(req.url);
     const id = url.searchParams.get('id');
     if (!id) return NextResponse.json({ error: 'Note ID is required' }, { status: 400 });
@@ -94,6 +94,6 @@ export async function DELETE(req: Request) {
     await prisma.note.delete({ where: { id } });
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: error.status || 500 });
   }
 }

@@ -4,9 +4,9 @@ import { getOrCreateDefaultUser } from '@/lib/user';
 import { extractPlaylistId, fetchPlaylistFromYouTube } from '@/lib/youtube';
 import { calculatePlaylistMetrics } from '@/lib/utils';
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    const user = await getOrCreateDefaultUser();
+    const user = await getOrCreateDefaultUser(req);
 
     const playlists = await prisma.playlist.findMany({
       where: { userId: user.id, isArchived: false },
@@ -49,13 +49,13 @@ export async function GET() {
     return NextResponse.json(enrichedPlaylists);
   } catch (error: any) {
     console.error('Failed to fetch playlists:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: error.status || 500 });
   }
 }
 
 export async function POST(req: Request) {
   try {
-    const user = await getOrCreateDefaultUser();
+    const user = await getOrCreateDefaultUser(req);
     const body = await req.json();
     const { urlOrId, targetDate, availableHoursPerDay } = body;
 
@@ -146,6 +146,6 @@ export async function POST(req: Request) {
     });
   } catch (error: any) {
     console.error('Error importing playlist:', error);
-    return NextResponse.json({ error: error.message || 'Import failed' }, { status: 500 });
+    return NextResponse.json({ error: error.message || 'Import failed' }, { status: error.status || 500 });
   }
 }

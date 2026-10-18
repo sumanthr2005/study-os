@@ -56,6 +56,6 @@ export async function GET(req: Request) {
     });
   } catch (error: any) {
     console.error('Gamification API error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: error.status || 500 });
   }
 }

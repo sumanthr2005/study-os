@@ -5,7 +5,7 @@ import { calculatePlaylistMetrics } from '@/lib/utils';
 
 export async function GET(req: Request, { params }: { params: { id: string } }) {
   try {
-    const user = await getOrCreateDefaultUser();
+    const user = await getOrCreateDefaultUser(req);
     const playlist = await prisma.playlist.findUnique({
       where: { id: params.id },
       include: {
@@ -45,13 +45,13 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     });
   } catch (error: any) {
     console.error('Error fetching playlist:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: error.status || 500 });
   }
 }
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   try {
-    const user = await getOrCreateDefaultUser();
+    const user = await getOrCreateDefaultUser(req);
     const existing = await prisma.playlist.findUnique({ where: { id: params.id } });
     if (!existing) {
       return NextResponse.json({ error: 'Playlist not found' }, { status: 404 });
@@ -79,13 +79,13 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
     return NextResponse.json(updated);
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: error.status || 500 });
   }
 }
 
 export async function DELETE(req: Request, { params }: { params: { id: string } }) {
   try {
-    const user = await getOrCreateDefaultUser();
+    const user = await getOrCreateDefaultUser(req);
     const existing = await prisma.playlist.findUnique({ where: { id: params.id } });
     if (!existing) {
       return NextResponse.json({ error: 'Playlist not found' }, { status: 404 });
@@ -99,6 +99,6 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
     });
     return NextResponse.json({ success: true, message: 'Playlist deleted successfully' });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: error.status || 500 });
   }
 }

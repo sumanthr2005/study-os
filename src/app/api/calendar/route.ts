@@ -5,7 +5,7 @@ import { formatDateToYYYYMMDD } from '@/lib/utils';
 
 export async function GET(req: Request) {
   try {
-    const user = await getOrCreateDefaultUser();
+    const user = await getOrCreateDefaultUser(req);
 
     const [sessions, tasks, revisions, playlists, goals] = await Promise.all([
       prisma.studySession.findMany({
@@ -97,6 +97,6 @@ export async function GET(req: Request) {
 
     return NextResponse.json(events);
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: error.status || 500 });
   }
 }

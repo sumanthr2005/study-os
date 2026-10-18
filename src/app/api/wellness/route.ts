@@ -3,9 +3,9 @@ import { prisma } from '@/lib/prisma';
 import { getOrCreateDefaultUser } from '@/lib/user';
 import { formatDateToYYYYMMDD } from '@/lib/utils';
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    const user = await getOrCreateDefaultUser();
+    const user = await getOrCreateDefaultUser(req);
     const todayStr = formatDateToYYYYMMDD(new Date());
 
     const todayEntry = await prisma.wellnessEntry.findUnique({
@@ -29,13 +29,13 @@ export async function GET() {
       recentEntries,
     });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: error.status || 500 });
   }
 }
 
 export async function POST(req: Request) {
   try {
-    const user = await getOrCreateDefaultUser();
+    const user = await getOrCreateDefaultUser(req);
     const body = await req.json();
     const todayStr = formatDateToYYYYMMDD(new Date());
 
@@ -72,6 +72,6 @@ export async function POST(req: Request) {
 
     return NextResponse.json(entry);
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: error.status || 500 });
   }
 }

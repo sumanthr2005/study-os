@@ -1,6 +1,9 @@
 import { prisma } from '../src/lib/db';
 import { hashPassword, verifyPassword, createSession, destroySession } from '../src/lib/auth';
 import { awardServerXp } from '../src/lib/gamification';
+import { GET as getTasks, POST as postTasks } from '../src/app/api/tasks/route';
+import { PATCH as patchTask, DELETE as deleteTask } from '../src/app/api/tasks/[id]/route';
+import { POST as postNote, PATCH as patchNote } from '../src/app/api/notes/route';
 
 async function runAuthAndIsolationTests() {
   console.log('====================================================');
@@ -29,7 +32,10 @@ async function runAuthAndIsolationTests() {
   let userAId: string = '';
   let userBId: string = '';
   let sessionAToken: string = '';
+  let sessionBToken: string = '';
   let taskAId: string = '';
+  let taskBId: string = '';
+  let noteAId: string = '';
 
   try {
     // ------------------------------------------------------------------------
@@ -73,7 +79,7 @@ async function runAuthAndIsolationTests() {
     assert(dbSession?.expiresAt.getTime()! > Date.now(), 'Session expiration is in the future (30 days)');
 
     // ------------------------------------------------------------------------
-    // TEST 3: User B Registration
+    // TEST 3: User B Registration & Session Generation
     // ------------------------------------------------------------------------
     console.log('\n--- 3. USER B ISOLATION SETUP ---');
     const userB = await prisma.user.create({
@@ -87,10 +93,22 @@ async function runAuthAndIsolationTests() {
     userBId = userB.id;
     assert(userB.id !== userA.id, 'User B has distinct unique ID from User A');
 
+    const sessionB = await createSession(userB.id);
+    sessionBToken = sessionB.token;
+    assert(Boolean(sessionB.token), 'User B session token generated');
+
     // ------------------------------------------------------------------------
-    // TEST 4: Resource Scoping & Query Isolation
+    // TEST 4: Direct API Unauthorized Request Defense (HTTP 401)
     // ------------------------------------------------------------------------
-    console.log('\n--- 4. USER DATA ISOLATION (USER A vs USER B) ---');
+    console.log('\n--- 4. UNAUTHORIZED REQUEST DEFENSE ---');
+    const unauthReq = new Request('http://localhost:3000/api/tasks');
+    const unauthRes = await getTasks(unauthReq);
+    assert(unauthRes.status === 401, 'Direct API call without token rejected with 401 Unauthorized', `Status: ${unauthRes.status}`);
+
+    // ------------------------------------------------------------------------
+    // TEST 5: User Data Creation & Isolation (User A vs User B)
+    // ------------------------------------------------------------------------
+    console.log('\n--- 5. USER DATA ISOLATION (USER A vs USER B) ---');
     const taskA = await prisma.task.create({
       data: {
         userId: userA.id,
@@ -103,30 +121,109 @@ async function runAuthAndIsolationTests() {
     taskAId = taskA.id;
     assert(Boolean(taskA.id), 'User A task created');
 
-    // Query tasks scoped to User B
+    // Query tasks for User B via DB query
     const userBTasks = await prisma.task.findMany({
       where: { userId: userB.id },
     });
     assert(userBTasks.length === 0, 'User B query returns 0 tasks (cannot see User A tasks)');
 
-    // ------------------------------------------------------------------------
-    // TEST 5: IDOR Defense (Insecure Direct Object Reference)
-    // ------------------------------------------------------------------------
-    console.log('\n--- 5. IDOR REJECTION (CROSS-USER MUTATION DEFENSE) ---');
-    const taskToTamper = await prisma.task.findUnique({ where: { id: taskA.id } });
-    assert(taskToTamper !== null, 'Target task exists in database');
-
-    // Simulate User B attempting to mutate User A's task
-    const isOwner = taskToTamper?.userId === userB.id;
-    assert(isOwner === false, 'Ownership check detects User B is NOT the task owner');
-
-    // Confirm that the simulated rejection policy preserves User A's task unchanged
-    assert(taskToTamper?.title === 'User A Confidential Strategy Task', 'Task A content remains unmodified');
+    // Query tasks for User B via API handler with User B's session token
+    const userBReq = new Request('http://localhost:3000/api/tasks', {
+      headers: { Authorization: `Bearer ${sessionBToken}` },
+    });
+    const userBTasksRes = await getTasks(userBReq);
+    const userBTasksData = await userBTasksRes.json();
+    assert(Array.isArray(userBTasksData) && userBTasksData.length === 0, 'User B API response contains 0 tasks');
 
     // ------------------------------------------------------------------------
-    // TEST 6: Gamification Ledger Idempotency & User Scoping
+    // TEST 6: Request Body Spoofing Defense (Supplying Forged userId)
     // ------------------------------------------------------------------------
-    console.log('\n--- 6. GAMIFICATION LEDGER ISOLATION ---');
+    console.log('\n--- 6. REQUEST BODY USERID SPOOFING DEFENSE ---');
+    // User B attempts to create a task claiming it belongs to User A
+    const spoofReq = new Request('http://localhost:3000/api/tasks', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${sessionBToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        userId: userA.id, // Tampered field
+        title: 'User B Injected Task',
+        category: 'Exploit',
+      }),
+    });
+    const spoofRes = await postTasks(spoofReq);
+    const spoofData = await spoofRes.json();
+    taskBId = spoofData.id || spoofData.task?.id;
+    assert(spoofRes.status === 201, 'Task created successfully');
+    assert(spoofData.userId === userB.id, 'Task userId forced strictly to authenticated User B session', `Owner: ${spoofData.userId}`);
+    assert(spoofData.userId !== userA.id, 'User A did NOT receive the spoofed task');
+
+    // Verify User A tasks count remains exactly 1
+    const userATasksAfter = await prisma.task.findMany({ where: { userId: userA.id } });
+    assert(userATasksAfter.length === 1, 'User A tasks count remains exactly 1');
+
+    // ------------------------------------------------------------------------
+    // TEST 7: IDOR Defense via Real Route Handlers (PATCH & DELETE)
+    // ------------------------------------------------------------------------
+    console.log('\n--- 7. IDOR DEFENSE VIA ROUTE HANDLERS ---');
+    // User B attempts to PATCH User A's task
+    const idorPatchReq = new Request(`http://localhost:3000/api/tasks/${taskAId}`, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${sessionBToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ title: 'Hacked by User B' }),
+    });
+    const idorPatchRes = await patchTask(idorPatchReq, { params: { id: taskAId } });
+    assert(idorPatchRes.status === 403, 'Cross-user task PATCH rejected with 403 Unauthorized', `Status: ${idorPatchRes.status}`);
+
+    const verifiedTaskA = await prisma.task.findUnique({ where: { id: taskAId } });
+    assert(verifiedTaskA?.title === 'User A Confidential Strategy Task', 'Task A title completely intact and unmodified');
+
+    // User B attempts to DELETE User A's task
+    const idorDeleteReq = new Request(`http://localhost:3000/api/tasks/${taskAId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${sessionBToken}` },
+    });
+    const idorDeleteRes = await deleteTask(idorDeleteReq, { params: { id: taskAId } });
+    assert(idorDeleteRes.status === 403, 'Cross-user task DELETE rejected with 403 Unauthorized', `Status: ${idorDeleteRes.status}`);
+
+    const verifiedTaskAAfter = await prisma.task.findUnique({ where: { id: taskAId } });
+    assert(verifiedTaskAAfter !== null, 'Task A remains safely persisted in database');
+
+    // ------------------------------------------------------------------------
+    // TEST 8: Notes Isolation & Cross-User Mutation Defense
+    // ------------------------------------------------------------------------
+    console.log('\n--- 8. NOTES DATA ISOLATION & IDOR ---');
+    const noteA = await prisma.note.create({
+      data: {
+        userId: userA.id,
+        title: 'User A Secret Strategy Note',
+        content: 'Confidential algorithms research',
+      },
+    });
+    noteAId = noteA.id;
+
+    const idorNotePatch = new Request('http://localhost:3000/api/notes', {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${sessionBToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ id: noteAId, title: 'Tampered Note Title' }),
+    });
+    const idorNoteRes = await patchNote(idorNotePatch);
+    assert(idorNoteRes.status === 403, 'Cross-user note PATCH rejected with 403 Unauthorized', `Status: ${idorNoteRes.status}`);
+
+    const verifiedNote = await prisma.note.findUnique({ where: { id: noteAId } });
+    assert(verifiedNote?.title === 'User A Secret Strategy Note', 'Note A content remains untampered');
+
+    // ------------------------------------------------------------------------
+    // TEST 9: Gamification Ledger Idempotency & User Scoping
+    // ------------------------------------------------------------------------
+    console.log('\n--- 9. GAMIFICATION LEDGER ISOLATION ---');
     const eventKey = `test_study_event_${timestamp}`;
     const awardResult1 = await awardServerXp({
       userId: userA.id,
@@ -147,9 +244,9 @@ async function runAuthAndIsolationTests() {
     assert(awardResultDuplicate.awarded === false && awardResultDuplicate.amount === 0, 'Replayed eventKey rejected idempotently (0 XP awarded)');
 
     // ------------------------------------------------------------------------
-    // TEST 7: Session Destruction on Logout
+    // TEST 10: Session Invalidation on Logout
     // ------------------------------------------------------------------------
-    console.log('\n--- 7. SESSION INVALIDATION ON LOGOUT ---');
+    console.log('\n--- 10. SESSION INVALIDATION ON LOGOUT ---');
     await destroySession(sessionAToken);
     const sessionAfterLogout = await prisma.session.findUnique({
       where: { token: sessionAToken },
@@ -158,11 +255,17 @@ async function runAuthAndIsolationTests() {
 
   } finally {
     // ------------------------------------------------------------------------
-    // CLEANUP TEST DATA
+    // CLEANUP TEST DATA: Zero pollution of real database
     // ------------------------------------------------------------------------
     console.log('\n--- CLEANUP ---');
     if (taskAId) {
       await prisma.task.deleteMany({ where: { id: taskAId } });
+    }
+    if (taskBId) {
+      await prisma.task.deleteMany({ where: { id: taskBId } });
+    }
+    if (noteAId) {
+      await prisma.note.deleteMany({ where: { id: noteAId } });
     }
     if (userAId) {
       await prisma.xpLedger.deleteMany({ where: { userId: userAId } });
@@ -170,10 +273,11 @@ async function runAuthAndIsolationTests() {
       await prisma.user.deleteMany({ where: { id: userAId } });
     }
     if (userBId) {
+      await prisma.xpLedger.deleteMany({ where: { userId: userBId } });
       await prisma.session.deleteMany({ where: { userId: userBId } });
       await prisma.user.deleteMany({ where: { id: userBId } });
     }
-    console.log('🧹 Cleaned up isolated test records.');
+    console.log('🧹 Cleaned up all isolated test records.');
   }
 
   console.log('\n====================================================');

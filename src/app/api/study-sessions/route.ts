@@ -6,7 +6,7 @@ import { awardServerXp } from '@/lib/gamification';
 
 export async function GET(req: Request) {
   try {
-    const user = await getOrCreateDefaultUser();
+    const user = await getOrCreateDefaultUser(req);
     const url = new URL(req.url);
     const dateParam = url.searchParams.get('date'); // YYYY-MM-DD
     const subjectParam = url.searchParams.get('subject');
@@ -59,13 +59,13 @@ export async function GET(req: Request) {
     });
   } catch (error: any) {
     console.error('Error fetching study sessions:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: error.status || 500 });
   }
 }
 
 export async function POST(req: Request) {
   try {
-    const user = await getOrCreateDefaultUser();
+    const user = await getOrCreateDefaultUser(req);
     const body = await req.json();
     const {
       subject,
@@ -156,6 +156,6 @@ export async function POST(req: Request) {
     });
   } catch (error: any) {
     console.error('Error recording study session:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: error.status || 500 });
   }
 }

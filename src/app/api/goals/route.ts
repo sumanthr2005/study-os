@@ -2,9 +2,9 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getOrCreateDefaultUser } from '@/lib/user';
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    const user = await getOrCreateDefaultUser();
+    const user = await getOrCreateDefaultUser(req);
     const goals = await prisma.goal.findMany({
       where: { userId: user.id },
       include: {
@@ -32,13 +32,13 @@ export async function GET() {
 
     return NextResponse.json(enriched);
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: error.status || 500 });
   }
 }
 
 export async function POST(req: Request) {
   try {
-    const user = await getOrCreateDefaultUser();
+    const user = await getOrCreateDefaultUser(req);
     const body = await req.json();
     const { title, description, category = 'LEARNING', targetValue, unit = 'items', deadline, milestones = [] } = body;
 
@@ -71,13 +71,13 @@ export async function POST(req: Request) {
 
     return NextResponse.json(goal);
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: error.status || 500 });
   }
 }
 
 export async function PATCH(req: Request) {
   try {
-    const user = await getOrCreateDefaultUser();
+    const user = await getOrCreateDefaultUser(req);
     const body = await req.json();
     const { id, currentValue, status, title } = body;
 
@@ -98,6 +98,24 @@ export async function PATCH(req: Request) {
 
     return NextResponse.json(updated);
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: error.status || 500 });
+  }
+}
+
+export async function DELETE(req: Request) {
+  try {
+    const user = await getOrCreateDefaultUser(req);
+    const url = new URL(req.url);
+    const id = url.searchParams.get('id');
+    if (!id) return NextResponse.json({ error: 'Goal ID is required' }, { status: 400 });
+
+    const existing = await prisma.goal.findUnique({ where: { id } });
+    if (!existing) return NextResponse.json({ error: 'Goal not found' }, { status: 404 });
+    if (existing.userId !== user.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+
+    await prisma.goal.delete({ where: { id } });
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: error.status || 500 });
   }
 }

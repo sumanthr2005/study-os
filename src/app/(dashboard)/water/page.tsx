@@ -102,7 +102,7 @@ export default function WaterTrackerPage() {
         <Card className="p-6 border-slate-800">
           <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300 mb-3 flex items-center gap-1.5">
             <Clock className="h-4 w-4 text-cyan-400" />
-            Today's Log Entries
+            Today&apos;s Log Entries
           </h4>
 
           {entries.length === 0 ? (

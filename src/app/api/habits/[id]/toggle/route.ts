@@ -7,7 +7,7 @@ import { awardServerXp } from '@/lib/gamification';
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   try {
-    const user = await getOrCreateDefaultUser();
+    const user = await getOrCreateDefaultUser(req);
     const body = await req.json().catch(() => ({}));
     const date = body.date || formatDateToYYYYMMDD(new Date());
 
@@ -63,6 +63,6 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
     return NextResponse.json({ success: true, completed, date });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: error.status || 500 });
   }
 }

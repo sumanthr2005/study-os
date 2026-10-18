@@ -4,7 +4,7 @@ import { getOrCreateDefaultUser } from '@/lib/user';
 
 export async function GET(req: Request) {
   try {
-    const user = await getOrCreateDefaultUser();
+    const user = await getOrCreateDefaultUser(req);
     const url = new URL(req.url);
     const statusParam = url.searchParams.get('status');
 
@@ -25,13 +25,13 @@ export async function GET(req: Request) {
 
     return NextResponse.json(tasks);
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: error.status || 500 });
   }
 }
 
 export async function POST(req: Request) {
   try {
-    const user = await getOrCreateDefaultUser();
+    const user = await getOrCreateDefaultUser(req);
     const body = await req.json().catch(() => null);
 
     if (!body || typeof body !== 'object') {
@@ -127,6 +127,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ ...task, task }, { status: 201 });
   } catch (error: any) {
     console.error('Task creation failed:', error);
-    return NextResponse.json({ error: error.message || 'Internal server error creating task' }, { status: 500 });
+    return NextResponse.json({ error: error.message || 'Internal server error creating task' }, { status: error.status || 500 });
   }
 }

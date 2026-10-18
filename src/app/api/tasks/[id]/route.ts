@@ -6,7 +6,7 @@ import { awardServerXp } from '@/lib/gamification';
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   try {
-    const user = await getOrCreateDefaultUser();
+    const user = await getOrCreateDefaultUser(req);
     const body = await req.json().catch(() => ({}));
     const { title, description, category, priority, deadline, estimatedMinutes, actualMinutes, status, tags } = body;
 
@@ -47,13 +47,13 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
     return NextResponse.json({ ...updated, task: updated });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: error.status || 500 });
   }
 }
 
 export async function DELETE(req: Request, { params }: { params: { id: string } }) {
   try {
-    const user = await getOrCreateDefaultUser();
+    const user = await getOrCreateDefaultUser(req);
     const existing = await prisma.task.findUnique({ where: { id: params.id } });
     if (!existing) return NextResponse.json({ error: 'Task not found' }, { status: 404 });
     if (existing.userId !== user.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
@@ -61,7 +61,7 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
     await prisma.task.delete({ where: { id: params.id } });
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: error.status || 500 });
   }
 }
 
